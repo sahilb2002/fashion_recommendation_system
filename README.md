@@ -1,4 +1,6 @@
 # Fashion Recommendation System
+View on github- https://github.com/sahilb2002/fashion_recommendation_system 
+
 This system could show similar garments from a fixed database.
 
 I trained a model to classify clothes into 11 catefories which are as follows-
@@ -47,3 +49,54 @@ To find the images similar to a give image (query), the following algorithm is u
 This was much simpler, All I had to was to predict the labels of all the images int he set and done!
 
 **THE NOTEBOOK <a href="./results.ipynb"> ./results.ipynb </a>  SHOWS SOME RESULTS OBTAINED.**
+
+## Tesing the code
+To test the code follow these instructions-
+- Download the model weights from <a href = "https://drive.google.com/drive/folders/1VEK2PZYhm34633uRfaj-teToRwSdM6dK?usp=sharing"> here </a> (download the complete folder).
+
+- If you have no other database, download the database from <a href="https://drive.google.com/file/d/1-kxFk9ojVXV2Nx2vsitmX-3F7suQFwCm/view?usp=sharing">here</a>, (download the tar file and extract the dataset folder from it).
+
+- Prepare a csv file as follows- it should contain two columns named **image_name** and **category_label**, the image_name columns should contains paths of images relative to CWD, and category_label should contain the category labels from [0,10] as per the above list of clothes, if you dont have the labels compute labels as follows-
+```
+from fashion_studio import save_all_labels
+save_all_labels(database_path = /path/to/csv/containing_image_paths_as_described, model_path=/path/to/model, save_path=/path/to/save_csv )
+```
+**NOTE** If you are using the above database, you can use the <a href="./features.csv">./features.csv</a> file as your database file, but ensure that the extracted dataset folder is in **parent directory of CWD**.
+
+- Computing features-
+```
+from fashion_studio import save_all_features
+save_all_features(database_path = /path/to/csv/containing_2_columns_as_described, model_path=/path/to/model, save_path = /path/to/save/.npz_file)
+```
+Alternatively you can view the features.ipynb file.
+
+**NOTE** Again if you are using the above database you can download this .npz file from <a href="https://drive.google.com/file/d/1-2WBZyjwHcQFrffnIEQDU8UR47psgGpB/view?usp=sharing">here</a> (around 900 MB)
+
+- Download label map from <a href="https://drive.google.com/file/d/1LmF9oxGa8SUF8xI5zqlMqFgkhGH98CXG/view?usp=sharing"> here </a>
+
+- Finally get similar recommendation using below code-
+```
+from fashion_studio import recommender
+recommend = recommender(database_path = /path/to/csv, feature_path = /path/to/.npz_file, model_path=/path/to/model, label_map_path = /path/to/txt)
+```
+If you have a test image-
+```
+recommend.get_similar(/path/to/test_image, num_neighbors = number_of_recommendation_you_want(default 9)) # returns query_image, list of similar_images and label_of_image
+recommend.show()
+```
+Else it will take a random image from database-
+```
+recommend.get_similar()
+recommend.show()
+```
+
+- To identify most common category from a set of images-
+Put all the images in a directory, or you need a list of paths_to_all_images
+```
+from fashion_studio import counter
+count = counter(model_path = /path/to/model, label_path = /path/to/label_map.txt)
+
+count.count(dir_path = /path/to/dir_containing_images or img_paths = [list containing image_paths], k = number_of_labels_to_be_shown) # at least one of dir_path, img_paths must be specified, if both are specified dir_path is used.
+
+count.show() # to see all images and their predicted category.
+```

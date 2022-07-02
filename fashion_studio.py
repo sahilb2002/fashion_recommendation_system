@@ -22,6 +22,66 @@ def get_feature(img, encoder):
     return feature.flatten()
 
 
+def get_features(img_paths,encoder):
+    imgs = []
+    for img_path in img_paths:
+        img = keras.preprocessing.image.load_img(img_path, target_size=(224,224))
+        img = keras.preprocessing.image.img_to_array(img)
+        img = img.astype('float32')/255.0
+        imgs.append(img)
+
+    feature = encoder.predict(np.array(imgs), verbose=0)
+    return feature
+
+def save_all_labels(database_path, model_path, sace_path):
+    model_comp = models.load_model(model_path)
+    
+    encoder = models.Sequential()
+    encoder.add(models.Model(model_comp.input, model_comp.layers[-2].output))
+    encoder.add(keras.layers.GlobalAveragePooling2D())
+    encoder.trainable = False
+
+    classifier = models.Model(model_comp.layers[-1].layers[1].input,model_comp.layers[-1].output)
+    classifier.trainable = False
+
+    database = pd.read_csv(database_path)
+
+    batch = 128
+    y_pred = []
+    n=len(database)
+    for i in range(0,n,batch):
+        y_pred = y_pred + list(np.argmax(classifier.predict(get_features(database['image_name'].iloc[i:min(i+batch,n)],encoder),verbose=0),axis=1).flatten())
+
+    label_map = [0,1,10,2,3,4,5,6,7,8,9]
+    for i in range(n):
+        y_pred[i] = label_map[y_pred[i]]
+    
+    database.insert(3, 'category_label', y_pred)
+    database.to_csv(sace_path, index=False)
+
+def save_all_features(databse_path, model_path, save_path):
+    model_comp = models.load_model(model_path)
+    
+    encoder = models.Sequential()
+    encoder.add(models.Model(model_comp.input, model_comp.layers[-2].output))
+    encoder.add(keras.layers.GlobalAveragePooling2D())
+    encoder.trainable = False
+
+    database = pd.read_csv(databse_path)
+
+    features = []
+    batch = 128
+    n = len(database)
+
+    # compute the features of all images in the database.
+    for i  in range(0,n,batch):
+        features = features + get_features(database['image_name'].iloc[i:min(i+batch,n)],encoder)
+
+    features_array = np.asarray(features)
+    
+    np.savez_compressed(save_path, arr_0 = features_array)
+
+
 class recommender(object):
     def __init__(self, database_path, feature_path, model_path, label_map_path):
         # load the label_map
@@ -70,21 +130,22 @@ class recommender(object):
         label = self.__get_label(query)
         all_samples = self.category_groups.get_group(label)
         neighs = [] # maintain top num_neighbors
-        dists = []
+
         for i in all_samples.index:
             feat = self.all_features[i]
             sim = 1-cosine(query,feat)
-
-            if len(neighs)<num_neighbors:
-                neighs.append(i)
-                dists.append(sim)
-            else :
-                for j in range(num_neighbors):
-                    if dists[j]<sim:
-                        neighs[j] = i
-                        dists[j] = sim
-                        break
         
+            if(sim==1):
+                continue
+        
+            neighs.append((sim,i))
+            neighs.sort(key=lambda x:x[0], reverse=True)
+        
+            if(len(neighs)>num_neighbors):
+                neighs.pop(-1)
+
+        dists = [i for i,j in neighs]
+        neighs = [j for i,j in neighs]
         return neighs,dists, label
     
     def __random_choose(self):
@@ -110,14 +171,14 @@ class recommender(object):
             return
         
         n = int(np.sqrt(len(neighbors)))
-        plt.figure(figsize=(5*n,5*n))
         
-        plt.subplot(n,n,1)
+        plt.figure(figsize=(5,5))
         plt.imshow(query_image)
         plt.axis('off')
         plt.title('Query Image' + '\n' + 'Predicted Category: ' + self.label_map[self.label])
         
-        for i in range(1,n*n):
+        plt.figure(figsize=(5*n,5*n))
+        for i in range(n*n):
             plt.subplot(n,n,i+1)
             plt.imshow(neighbors[i])
             plt.axis('off')
@@ -197,14 +258,18 @@ class counter:
         plt.show()
 
 
-    def count(self, dir_path, k=None):
+    def count(self, dir_path=None, img_paths=[], k=None):
         self.labels = []
         self.imgs = []
+
         if k is None:
             k = len(self.label_map)
-        img_paths = []
-        for i in os.listdir(dir_path):
-            img_paths.append(os.path.join(dir_path,i))
+        
+        if dir_path is not None:
+            img_paths=[]
+            for i in os.listdir(dir_path):
+                img_paths.append(os.path.join(dir_path,i))
+        
         self.labels = self.__get_label_batch(img_paths)
         toplabels = self.__get_top_klabels(k)
         
